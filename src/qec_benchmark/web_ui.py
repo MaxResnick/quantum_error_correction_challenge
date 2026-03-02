@@ -654,6 +654,7 @@ def render_homepage() -> str:
         <nav class="footer-links">
           <a href="#leaderboard">Leaderboard</a>
           <a href="#" data-open-submit>Submit</a>
+          <a href="https://github.com/MaxResnick/quantum_error_correction_challenge" target="_blank" rel="noopener noreferrer">GitHub</a>
           <a href="/about">About</a>
           <a href="/health">API Health</a>
         </nav>
