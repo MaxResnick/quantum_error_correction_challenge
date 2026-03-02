@@ -5,6 +5,106 @@ from pathlib import Path
 import re
 
 
+def _md_inline(text: str) -> str:
+    escaped = html.escape(text)
+    escaped = re.sub(
+        r"\[([^\]]+)\]\((https?://[^\s)]+)\)",
+        r'<a href="\2" target="_blank" rel="noopener noreferrer">\1</a>',
+        escaped,
+    )
+    escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+    escaped = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
+    return escaped
+
+
+def _render_markdown_simple(text: str) -> str:
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    out: list[str] = []
+    para: list[str] = []
+    list_kind: str | None = None
+    in_code = False
+    code_lines: list[str] = []
+
+    def flush_para() -> None:
+        if not para:
+            return
+        merged = " ".join(s.strip() for s in para if s.strip())
+        out.append(f"<p>{_md_inline(merged)}</p>")
+        para.clear()
+
+    def close_list() -> None:
+        nonlocal list_kind
+        if list_kind == "ul":
+            out.append("</ul>")
+        elif list_kind == "ol":
+            out.append("</ol>")
+        list_kind = None
+
+    for raw in lines:
+        line = raw.rstrip("\n")
+        stripped = line.strip()
+
+        if in_code:
+            if stripped.startswith("```"):
+                code_html = html.escape("\n".join(code_lines))
+                out.append(f"<pre><code>{code_html}</code></pre>")
+                code_lines.clear()
+                in_code = False
+            else:
+                code_lines.append(line)
+            continue
+
+        if stripped.startswith("```"):
+            flush_para()
+            close_list()
+            in_code = True
+            continue
+
+        if not stripped:
+            flush_para()
+            close_list()
+            continue
+
+        heading = re.match(r"^(#{1,6})\s+(.*)$", stripped)
+        if heading:
+            flush_para()
+            close_list()
+            level = len(heading.group(1))
+            out.append(f"<h{level}>{_md_inline(heading.group(2))}</h{level}>")
+            continue
+
+        bullet = re.match(r"^[-*]\s+(.*)$", stripped)
+        if bullet:
+            flush_para()
+            if list_kind != "ul":
+                close_list()
+                out.append("<ul>")
+                list_kind = "ul"
+            out.append(f"<li>{_md_inline(bullet.group(1))}</li>")
+            continue
+
+        number = re.match(r"^\d+\.\s+(.*)$", stripped)
+        if number:
+            flush_para()
+            if list_kind != "ol":
+                close_list()
+                out.append("<ol>")
+                list_kind = "ol"
+            out.append(f"<li>{_md_inline(number.group(1))}</li>")
+            continue
+
+        para.append(stripped)
+
+    flush_para()
+    close_list()
+
+    if in_code:
+        code_html = html.escape("\n".join(code_lines))
+        out.append(f"<pre><code>{code_html}</code></pre>")
+
+    return "\n".join(out)
+
+
 def render_homepage() -> str:
     return """<!doctype html>
 <html lang="en">
@@ -1014,11 +1114,15 @@ def render_homepage() -> str:
 
 def render_read_more_page() -> str:
     docs_dir = Path(__file__).resolve().parents[2] / "docs"
+    doc_md_path = docs_dir / "qec_quickstart.md"
     doc_html_path = docs_dir / "qec_quickstart.html"
     doc_txt_path = docs_dir / "qec_quickstart.txt"
 
     embedded_body = ""
-    if doc_html_path.exists():
+    if doc_md_path.exists():
+        text = doc_md_path.read_text(encoding="utf-8")
+        embedded_body = _render_markdown_simple(text)
+    elif doc_html_path.exists():
         raw = doc_html_path.read_text(encoding="utf-8")
         body_match = re.search(r"<body[^>]*>(.*?)</body>", raw, flags=re.IGNORECASE | re.DOTALL)
         embedded_body = body_match.group(1).strip() if body_match else raw
@@ -1194,6 +1298,25 @@ def render_read_more_page() -> str:
       .about-doc {{
         max-width: 760px;
         font-size: 1.03rem;
+      }}
+
+      .about-doc h1,
+      .about-doc h2,
+      .about-doc h3 {{
+        margin: 1.6rem 0 0.65rem;
+        color: var(--text);
+      }}
+
+      .about-doc h1 {{
+        font-size: 2.05rem;
+      }}
+
+      .about-doc h2 {{
+        font-size: 1.62rem;
+      }}
+
+      .about-doc h3 {{
+        font-size: 1.26rem;
       }}
 
       .about-doc p {{
