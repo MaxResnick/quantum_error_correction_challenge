@@ -40,7 +40,23 @@ def _render_markdown_simple(text: str) -> str:
             out.append("</ol>")
         list_kind = None
 
-    for raw in lines:
+    def split_table_row(row: str) -> list[str]:
+        stripped = row.strip()
+        if stripped.startswith("|"):
+            stripped = stripped[1:]
+        if stripped.endswith("|"):
+            stripped = stripped[:-1]
+        return [cell.strip() for cell in stripped.split("|")]
+
+    def is_table_delim(row: str) -> bool:
+        parts = split_table_row(row)
+        if not parts:
+            return False
+        return all(re.match(r"^:?-{3,}:?$", part) for part in parts)
+
+    i = 0
+    while i < len(lines):
+        raw = lines[i]
         line = raw.rstrip("\n")
         stripped = line.strip()
 
@@ -52,18 +68,53 @@ def _render_markdown_simple(text: str) -> str:
                 in_code = False
             else:
                 code_lines.append(line)
+            i += 1
             continue
 
         if stripped.startswith("```"):
             flush_para()
             close_list()
             in_code = True
+            i += 1
             continue
 
         if not stripped:
             flush_para()
             close_list()
+            i += 1
             continue
+
+        if (
+            "|" in stripped
+            and i + 1 < len(lines)
+            and "|" in lines[i + 1]
+            and is_table_delim(lines[i + 1])
+        ):
+            header_cells = split_table_row(stripped)
+            if header_cells:
+                flush_para()
+                close_list()
+                out.append("<table>")
+                out.append("<thead><tr>")
+                for cell in header_cells:
+                    out.append(f"<th>{_md_inline(cell)}</th>")
+                out.append("</tr></thead>")
+                out.append("<tbody>")
+                i += 2
+                while i < len(lines):
+                    row = lines[i].strip()
+                    if not row or "|" not in row:
+                        break
+                    cells = split_table_row(row)
+                    if not cells:
+                        break
+                    out.append("<tr>")
+                    for cell in cells:
+                        out.append(f"<td>{_md_inline(cell)}</td>")
+                    out.append("</tr>")
+                    i += 1
+                out.append("</tbody></table>")
+                continue
 
         heading = re.match(r"^(#{1,6})\s+(.*)$", stripped)
         if heading:
@@ -71,6 +122,7 @@ def _render_markdown_simple(text: str) -> str:
             close_list()
             level = len(heading.group(1))
             out.append(f"<h{level}>{_md_inline(heading.group(2))}</h{level}>")
+            i += 1
             continue
 
         bullet = re.match(r"^[-*]\s+(.*)$", stripped)
@@ -81,6 +133,7 @@ def _render_markdown_simple(text: str) -> str:
                 out.append("<ul>")
                 list_kind = "ul"
             out.append(f"<li>{_md_inline(bullet.group(1))}</li>")
+            i += 1
             continue
 
         number = re.match(r"^\d+\.\s+(.*)$", stripped)
@@ -91,9 +144,11 @@ def _render_markdown_simple(text: str) -> str:
                 out.append("<ol>")
                 list_kind = "ol"
             out.append(f"<li>{_md_inline(number.group(1))}</li>")
+            i += 1
             continue
 
         para.append(stripped)
+        i += 1
 
     flush_para()
     close_list()
@@ -1341,6 +1396,26 @@ def render_read_more_page() -> str:
       .about-doc li {{
         margin: 0.2rem 0;
         line-height: 1.55;
+      }}
+
+      .about-doc table {{
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0.65rem 0 1rem;
+        font-size: 0.98rem;
+      }}
+
+      .about-doc th,
+      .about-doc td {{
+        border: 1px solid var(--border);
+        padding: 7px 9px;
+        vertical-align: top;
+      }}
+
+      .about-doc th {{
+        background: #f3f1ec;
+        text-align: left;
+        font-weight: 600;
       }}
 
       .about-doc pre {{
