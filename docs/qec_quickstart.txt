@@ -1,10 +1,3 @@
-
-QEC Decoder Benchmark
-A Quickstart Guide for Classical Computing Engineers
-Everything you need to understand what is being simulated, why it matters,
-and how to build a decoder that beats the baseline.
-
-
 Overview
 This benchmark asks you to build a classical algorithm that decodes errors in a quantum error correcting code. You do not need to run quantum hardware, understand quantum mechanics at a deep level, or work with complex numbers. Everything in this challenge is a classical computational problem — you are given a binary vector of error syndrome measurements and you need to output a binary correction decision. This document explains the physical system behind those inputs and outputs so you can make informed algorithmic choices.
 

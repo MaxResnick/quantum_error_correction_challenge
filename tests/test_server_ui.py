@@ -36,5 +36,5 @@ def test_read_more_about_page_renders(tmp_path: Path) -> None:
 
     res = client.get("/about")
     assert res.status_code == 200
-    assert "QEC Decoder Benchmark" in res.text
-    assert "A Quickstart Guide for Classical Computing Engineers" in res.text
+    assert "Overview" in res.text
+    assert "What you are actually building" in res.text
