@@ -1119,9 +1119,11 @@ def render_read_more_page() -> str:
     doc_txt_path = docs_dir / "qec_quickstart.txt"
 
     embedded_body = ""
+    used_markdown_source = False
     if doc_md_path.exists():
         text = doc_md_path.read_text(encoding="utf-8")
         embedded_body = _render_markdown_simple(text)
+        used_markdown_source = True
     elif doc_html_path.exists():
         raw = doc_html_path.read_text(encoding="utf-8")
         body_match = re.search(r"<body[^>]*>(.*?)</body>", raw, flags=re.IGNORECASE | re.DOTALL)
@@ -1134,34 +1136,35 @@ def render_read_more_page() -> str:
     else:
         embedded_body = "<p>Missing docs/qec_quickstart.html</p>"
 
-    math_replacements = [
-        (
-            "|ψ⟩ = α|0⟩ + β|1⟩  where |α|² + |β|² = 1",
-            "$$|\\psi\\rangle = \\alpha|0\\rangle + \\beta|1\\rangle,\\quad |\\alpha|^2 + |\\beta|^2 = 1$$",
-        ),
-        (
-            "ε(ρ) = (1-p)ρ + (p/3)(XρX + YρY + ZρZ)",
-            "$$\\varepsilon(\\rho) = (1-p)\\rho + \\frac{{p}}{{3}}(X\\rho X + Y\\rho Y + Z\\rho Z)$$",
-        ),
-        (
-            "C_ij = p · exp(-|i-j| / ξ)",
-            "$$C_{{ij}} = p \\cdot e^{{-|i-j|/\\xi}}$$",
-        ),
-        (
-            "p_L ~ (p / p_threshold)^((d+1)/2)",
-            "$$p_L \\sim \\left(\\frac{{p}}{{p_{{\\text{{threshold}}}}}}\\right)^{{(d+1)/2}}$$",
-        ),
-        (
-            "decode(syndrome_tensor) → int",
-            "$$\\text{{decode}}(\\text{{syndrome_tensor}}) \\to \\mathbb{{Z}}$$",
-        ),
-        (
-            "S = 0.7 × (improvement over MWPM) + 0.3 × min(1, throughput / 1M syndromes/sec)",
-            "$$S = 0.7\\,(\\text{{improvement over MWPM}}) + 0.3\\,\\min\\!\\left(1, \\frac{{\\tau}}{{10^6}}\\right)$$",
-        ),
-    ]
-    for src, dest in math_replacements:
-        embedded_body = embedded_body.replace(src, dest)
+    if not used_markdown_source:
+        math_replacements = [
+            (
+                "|ψ⟩ = α|0⟩ + β|1⟩  where |α|² + |β|² = 1",
+                "$$|\\psi\\rangle = \\alpha|0\\rangle + \\beta|1\\rangle,\\quad |\\alpha|^2 + |\\beta|^2 = 1$$",
+            ),
+            (
+                "ε(ρ) = (1-p)ρ + (p/3)(XρX + YρY + ZρZ)",
+                "$$\\varepsilon(\\rho) = (1-p)\\rho + \\frac{{p}}{{3}}(X\\rho X + Y\\rho Y + Z\\rho Z)$$",
+            ),
+            (
+                "C_ij = p · exp(-|i-j| / ξ)",
+                "$$C_{{ij}} = p \\cdot e^{{-|i-j|/\\xi}}$$",
+            ),
+            (
+                "p_L ~ (p / p_threshold)^((d+1)/2)",
+                "$$p_L \\sim \\left(\\frac{{p}}{{p_{{\\text{{threshold}}}}}}\\right)^{{(d+1)/2}}$$",
+            ),
+            (
+                "decode(syndrome_tensor) → int",
+                "$$\\text{{decode}}(\\text{{syndrome_tensor}}) \\to \\mathbb{{Z}}$$",
+            ),
+            (
+                "S = 0.7 × (improvement over MWPM) + 0.3 × min(1, throughput / 1M syndromes/sec)",
+                "$$S = 0.7\\,(\\text{{improvement over MWPM}}) + 0.3\\,\\min\\!\\left(1, \\frac{{\\tau}}{{10^6}}\\right)$$",
+            ),
+        ]
+        for src, dest in math_replacements:
+            embedded_body = embedded_body.replace(src, dest)
 
     return f"""<!doctype html>
 <html lang="en">
@@ -1302,7 +1305,8 @@ def render_read_more_page() -> str:
 
       .about-doc h1,
       .about-doc h2,
-      .about-doc h3 {{
+      .about-doc h3,
+      .about-doc h4 {{
         margin: 1.6rem 0 0.65rem;
         color: var(--text);
       }}
@@ -1319,83 +1323,14 @@ def render_read_more_page() -> str:
         font-size: 1.26rem;
       }}
 
+      .about-doc h4 {{
+        font-size: 1.08rem;
+      }}
+
       .about-doc p {{
         margin: 0 0 0.8rem;
         line-height: 1.62;
         font-size: 1.03rem;
-      }}
-
-      .about-doc p.p2 {{
-        font-size: 2.35rem;
-        line-height: 1.1;
-        margin: 0 0 0.35rem;
-        color: var(--text);
-        text-align: left;
-      }}
-
-      .about-doc p.p3 {{
-        font-size: 1.22rem;
-        line-height: 1.3;
-        margin: 0 0 1rem;
-        color: var(--muted);
-        text-align: left;
-      }}
-
-      .about-doc p.p4,
-      .about-doc p.p5 {{
-        color: var(--muted);
-        text-align: left;
-        margin: 0 0 0.15rem;
-      }}
-
-      .about-doc p.p8 {{
-        font-size: 1.64rem;
-        line-height: 1.22;
-        margin: 2.2rem 0 0.7rem;
-        color: var(--text);
-      }}
-
-      .about-doc p.p14 {{
-        font-size: 1.26rem;
-        line-height: 1.35;
-        margin: 1.35rem 0 0.35rem;
-        color: var(--text);
-      }}
-
-      .about-doc p.p11 {{
-        font-size: 1.12rem;
-        line-height: 1.35;
-        margin: 0.2rem 0 0.35rem;
-      }}
-
-      .about-doc p.p9,
-      .about-doc p.p12,
-      .about-doc p.p17,
-      .about-doc p.p20,
-      .about-doc p.p21,
-      .about-doc p.p25,
-      .about-doc p.p27,
-      .about-doc p.p28 {{
-        font-size: 1.03rem;
-      }}
-
-      .about-doc p.p23,
-      .about-doc p.p24 {{
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.9rem;
-        line-height: 1.5;
-      }}
-
-      .about-doc p.p1,
-      .about-doc p.p6,
-      .about-doc p.p7,
-      .about-doc p.p10,
-      .about-doc p.p13,
-      .about-doc p.p15,
-      .about-doc p.p18,
-      .about-doc p.p19,
-      .about-doc p.p24 {{
-        margin: 0;
       }}
 
       .about-doc ul {{
@@ -1406,29 +1341,6 @@ def render_read_more_page() -> str:
       .about-doc li {{
         margin: 0.2rem 0;
         line-height: 1.55;
-      }}
-
-      .about-doc table {{
-        width: 100%;
-        border-collapse: collapse;
-        margin: 0.65rem 0 1rem;
-        font-size: 1rem;
-      }}
-
-      .about-doc td {{
-        border: 1px solid var(--border);
-        padding: 7px 8px;
-        vertical-align: top;
-      }}
-
-      .about-doc td p {{
-        margin: 0.2rem 0;
-      }}
-
-      /* Equation lines in the DOCX export are wrapped in single-cell tables. */
-      .about-doc tr > td:only-child {{
-        border: none;
-        padding: 0;
       }}
 
       .about-doc pre {{
@@ -1442,6 +1354,10 @@ def render_read_more_page() -> str:
         line-height: 1.45;
         white-space: pre-wrap;
         overflow-x: auto;
+      }}
+
+      .about-doc code {{
+        font-family: "JetBrains Mono", monospace;
       }}
     </style>
     <script>
