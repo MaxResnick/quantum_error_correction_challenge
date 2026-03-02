@@ -24,7 +24,7 @@ In classical computing, a bit is always either 0 or 1. This is the foundation of
 A qubit is the quantum analogue of a bit. The crucial difference is that a qubit can exist in a superposition of 0 and 1 simultaneously. Mathematically, a qubit's state is written as:
 
 $$
-|ψ⟩ = α|0⟩ + β|1⟩   where |α|² + |β|² = 1
+|\psi\rangle = \alpha|0\rangle + \beta|1\rangle,\quad |\alpha|^2 + |\beta|^2 = 1
 $$
 
 The values α and β are complex numbers called amplitudes. When you measure the qubit, you get 0 with probability |α|² and 1 with probability |β|², and after measurement the superposition collapses to whichever value you observed. This is the key practical constraint: you cannot simply read out a qubit's state without destroying it.
@@ -52,7 +52,7 @@ X errors are the quantum analogue of classical bit flips. Z errors have no class
 The simplest noise model assumes each physical qubit independently receives a random Pauli error with some probability p. With probability (1-p) nothing happens, and with probability p/3 each of X, Y, Z occurs. This is called the depolarizing channel:
 
 $$
-ε(ρ) = (1-p)ρ + (p/3)(XρX + YρY + ZρZ)
+\varepsilon(\rho) = (1-p)\rho + \frac{p}{3}\left(X\rho X + Y\rho Y + Z\rho Z\right)
 $$
 
 The ρ here is the density matrix — a way of representing a quantum state that can also describe statistical mixtures. For our purposes the important thing is just that each qubit fails independently with probability p. This is the easy case. The hard case — the one this benchmark is about — is when errors are correlated across qubits.
@@ -64,7 +64,7 @@ In real hardware, errors are not independent. A cosmic ray hit can cause a casca
 This benchmark models correlated noise using a spatially correlated error distribution parameterized by a correlation length ξ (Greek letter xi). When ξ = 0 you have independent errors. As ξ increases, errors cluster spatially — a failure at qubit i makes failures at nearby qubits more likely, with the probability decaying exponentially with distance:
 
 $$
-C_ij = p · exp(-|i-j| / ξ)
+C_{ij} = p \cdot e^{-|i-j|/\xi}
 $$
 
 where C_ij is the covariance between errors at qubits i and j
@@ -100,7 +100,7 @@ Think of RAID storage. You spread data across multiple disks so that any single 
 The most important theoretical result in quantum error correction is the threshold theorem: if the physical error rate p is below a critical value p_threshold, then by using a larger code (more physical qubits per logical qubit) you can make the logical error rate exponentially small. Below threshold, bigger is better. Above threshold, adding more qubits makes things worse because you're accumulating errors faster than you can correct them.
 
 $$
-p_L ~ (p / p_threshold)^((d+1)/2)
+p_L \sim \left(\frac{p}{p_{\mathrm{threshold}}}\right)^{(d+1)/2}
 $$
 
 where p_L is the logical error rate and d is the code distance
@@ -181,7 +181,7 @@ In this benchmark, syndrome data is provided per round. The full input to your d
 ### What your function signature looks like
 
 $$
-decode(syndrome_tensor) → int
+\operatorname{decode}(\mathrm{syndrome\_tensor}) \to \mathrm{int}
 $$
 
 where syndrome_tensor has shape (rounds, L, L) with binary values
@@ -231,7 +231,7 @@ There is also a speed track. Decoders must run on standardized CPU hardware. Thr
 The composite score rewards both accuracy and speed:
 
 $$
-S = 0.7 × (improvement over MWPM) + 0.3 × min(1, throughput / 1M syndromes/sec)
+S = 0.7 \times \left(\text{improvement over MWPM}\right) + 0.3 \times \min\left(1, \frac{\text{throughput}}{10^6\ \text{syndromes/sec}}\right)
 $$
 
 where improvement = (p_MWPM - p_yours) / p_MWPM
