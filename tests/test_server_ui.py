@@ -37,4 +37,4 @@ def test_read_more_about_page_renders(tmp_path: Path) -> None:
     res = client.get("/about")
     assert res.status_code == 200
     assert "Overview" in res.text
-    assert "What you are actually building" in res.text
+    assert "What You Are Actually Building" in res.text
