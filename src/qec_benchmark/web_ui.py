@@ -460,12 +460,32 @@ def render_homepage() -> str:
 
       .footer-inner {
         padding: 20px 0 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
       }
 
       .footer-links {
         display: flex;
         gap: 22px;
         flex-wrap: wrap;
+      }
+
+      .footer-credit {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        color: #2d2d2d;
+        font-size: 1.02rem;
+        font-weight: 600;
+      }
+
+      .footer-logo {
+        height: 24px;
+        width: auto;
+        display: block;
       }
 
       .modal-open {
@@ -658,6 +678,19 @@ def render_homepage() -> str:
           <a href="/about">About</a>
           <a href="/health">API Health</a>
         </nav>
+        <div class="footer-credit">
+          <span>Max Resnick</span>
+          <svg class="footer-logo" viewBox="0 0 184 46" role="img" aria-label="Anza logo">
+            <title>Anza</title>
+            <g fill="#1f4d1b">
+              <path d="M0 38 L8 8 H22 L14 38 Z"></path>
+              <path d="M16 38 L24 8 H38 L30 38 Z"></path>
+              <path d="M32 38 L40 8 H54 L46 38 Z"></path>
+              <rect x="62" y="8" width="9" height="30" rx="1"></rect>
+              <text x="76" y="34" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700">anza</text>
+            </g>
+          </svg>
+        </div>
       </div>
     </footer>
 
