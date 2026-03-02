@@ -1,186 +1,141 @@
-## Overview
+# Overview
 
 This benchmark asks you to build a **classical algorithm** that decodes errors in a quantum error-correcting code.
 
-You do not need to run quantum hardware or understand quantum mechanics at a deep level. In this challenge, you are given binary syndrome measurements from a simulated quantum chip and must output a binary logical correction decision. This document explains the system behind those inputs and outputs so you can make informed algorithmic choices.
+You do not need to run quantum hardware or know quantum mechanics in depth. In practice, this is a structured prediction task:
+
+- Input: a binary syndrome tensor.
+- Output: a binary logical correction decision.
+
+The goal is to beat baseline decoders under **spatially correlated noise**.
 
 ## What You Are Actually Building
 
-You are building a function that maps syndrome data to one bit:
+A function that maps a syndrome to one bit:
 
 $$
-\operatorname{decode}(\text{syndrome}) \to \{0,1\}
+\text{decode}(\text{syndrome}) \to \{0,1\}
 $$
 
-- Input: a binary syndrome vector (or space-time tensor over repeated rounds).
-- Output: a logical correction decision.
-- Objective: beat MWPM under spatially correlated noise, especially at large correlation length.
+You win by reducing logical failure rate relative to the baseline, especially when error correlations are strong.
 
-## 1. Bits vs. Qubits
+# 1. Bits vs. Qubits
 
-### Classical bits
+## Classical bits
 
-In classical computing, a bit is always either `0` or `1`. Every register, memory address, and CPU instruction operates on definite bit values.
+A classical bit is always `0` or `1`.
 
-### Qubits
+## Qubits
 
-A qubit can exist in superposition:
+A qubit can be in superposition:
 
 $$
 |\psi\rangle = \alpha|0\rangle + \beta|1\rangle, \qquad |\alpha|^2 + |\beta|^2 = 1
 $$
 
-The amplitudes $\alpha$ and $\beta$ are complex numbers. Measuring the qubit returns `0` with probability $|\alpha|^2$ and `1` with probability $|\beta|^2$, and the state collapses after measurement.
+Measuring collapses the state, so you cannot freely read out quantum information without disturbing it.
 
-### Why this makes error correction harder
+## Why this matters for error correction
 
-In classical systems, you can copy bits and compare copies. For unknown quantum states, perfect copying is forbidden (no-cloning theorem), so error detection must be indirect. Quantum error correction solves this by encoding one logical qubit across many physical qubits and measuring stabilizers instead of the logical state directly.
+You cannot copy unknown quantum states (no-cloning theorem), so error detection must be indirect via stabilizer measurements.
 
-## 2. What Quantum Errors Look Like
+# 2. What Quantum Errors Look Like
 
-### Pauli errors
-
-Single-qubit quantum errors are modeled as Pauli operators:
+Single-qubit Pauli errors:
 
 - `X`: bit-flip-like error
 - `Z`: phase-flip error
-- `Y`: combined bit and phase flip
+- `Y`: combined bit+phase error
 
-### Depolarizing channel (iid baseline)
-
-Under independent noise, each qubit fails independently with probability $p$:
+## Depolarizing channel (iid baseline intuition)
 
 $$
-\varepsilon(\rho) = (1-p)\rho + \frac{p}{3}\left(X\rho X + Y\rho Y + Z\rho Z\right)
+\varepsilon(\rho) = (1-p)\rho + \frac{p}{3}(X\rho X + Y\rho Y + Z\rho Z)
 $$
 
-This is the easy regime for decoding.
+## Correlated noise (benchmark focus)
 
-### Correlated noise (benchmark focus)
-
-Real hardware has spatially correlated faults from effects like cosmic rays, crosstalk, and leakage. The benchmark models this with correlation length $\xi$:
+This benchmark uses spatially correlated errors with correlation length $\xi$:
 
 $$
 C_{ij} = p \cdot e^{-\lvert i-j \rvert / \xi}
 $$
 
-- $\xi = 0$: near-independent errors
-- larger $\xi$: stronger clustering
+- $\xi=0$: near-independent noise
+- larger $\xi$: clustered errors
 
-MWPM assumes independent structure in its graph weights; this mismatch is why performance degrades under correlated noise.
+MWPM assumes independence; this is exactly where it degrades.
 
-## 3. Quantum Error Correction
+# 3. Quantum Error Correction
 
-### Core idea
+A logical qubit is encoded across many physical qubits.
 
-Encode one **logical qubit** into many noisy **physical qubits**, then repeatedly measure stabilizers to detect faults without collapsing the encoded information.
+- **Physical qubits**: noisy hardware qubits
+- **Logical qubit**: protected information
 
-- Physical qubit: hardware qubit, noisy and fragile.
-- Logical qubit: protected virtual qubit used by the computation.
+Stabilizers detect local inconsistencies (defects) without directly measuring the logical state.
 
-### Threshold theorem intuition
+## Threshold theorem intuition
 
-There is a critical physical error rate $p_{\mathrm{th}}$. Below threshold, increasing code distance drives logical failure down rapidly; above threshold, larger codes do not help.
-
-A standard scaling intuition is:
+Below a threshold physical error rate, larger code distance gives rapidly lower logical error:
 
 $$
 p_L \sim \left(\frac{p}{p_{\mathrm{th}}}\right)^{(d+1)/2}
 $$
 
-where $p_L$ is logical failure rate and $d$ is code distance.
+where $d$ is code distance.
 
-## 4. The Surface Code
+# 4. Surface Code
 
-The surface code is the dominant practical architecture for near-term fault tolerance because it is local in 2D and has efficient decoding in the iid regime.
+For an $L \times L$ surface code in this challenge context:
 
-For an $L \times L$ code in this challenge:
+- encodes one logical qubit
+- code distance scales with $L$
+- larger $L$ improves robustness but increases decoding cost
 
-- logical qubits: $k=1$
-- distance: $d=L$
-- physical qubits:
+A useful parameterization used in docs:
 
 $$
 n = 2L^2 - 2L + 1
 $$
 
-So an $L=5$ instance is often written as $[[41,1,5]]$.
+with one logical qubit encoded.
 
-### Stabilizers and defects
+# 5. Syndromes: Decoder Input
 
-Two stabilizer families are measured repeatedly:
+A syndrome is a binary pattern of stabilizer outcomes.
 
-- Plaquette (`Z`-type) checks
-- Vertex (`X`-type) checks
-
-A violated stabilizer (`-1`) is a **defect**. Error chains produce endpoint defects, and decoder quality depends on inferring which defects are paired by the underlying fault process.
-
-### Logical operators and distance
-
-A logical error occurs when actual error plus correction differs by a nontrivial logical operator spanning the lattice. Distance $d$ is the minimum fault weight needed to induce such an undetectable logical failure.
-
-## 5. Syndromes: Decoder Input
-
-A syndrome is the vector of stabilizer outcomes, with `0` meaning no local violation and `1` meaning defect.
+Example decoder contract:
 
 ```python
-syndrome = [0, 0, 1, 0, 1, 0, 0, 1, ...]
 logical_correction = decode(syndrome)  # 0 or 1
 ```
 
-In repeated-round settings, the decoder sees a space-time tensor:
+In multi-round settings you decode a space-time syndrome tensor.
 
-```python
-decode(syndrome_tensor) -> int
-# syndrome_tensor shape: (rounds, L, L)
-```
+# 6. Baseline: MWPM
 
-Measurement faults can create transient defects, which is why temporal context often matters.
+Minimum Weight Perfect Matching (MWPM):
 
-## 6. Baseline: MWPM
-
-Minimum Weight Perfect Matching (MWPM) pipeline:
-
-1. Build a defect graph.
-2. Connect candidate pairs with weighted edges.
+1. Build defect graph.
+2. Weight edges by an iid likelihood proxy.
 3. Solve minimum-weight perfect matching.
-4. Convert matched pairs into correction chains.
+4. Convert matches to correction.
 
-Under independent noise, distance-based weights are a good likelihood proxy. Under correlated noise, that proxy is systematically wrong because true likelihood depends on joint spatial structure, not just pairwise shortest paths.
+It is strong under iid-like regimes and weaker under strong correlations.
 
-## 7. Benchmark Structure
+# 7. Benchmark Structure
 
-Dataset generation uses Stim across parameter grids in code size, physical error rate, and correlation length.
+Data is generated with Stim and evaluated on fixed parameter points.
 
-Representative grid:
+Core metrics:
 
-- $L \in \{3,5,7,11\}$
-- $p \in \{0.001,0.005,0.01,0.02,0.05\}$
-- $\xi \in \{0,1,2,5,10,20\}$
+- **Logical failure rate** (primary, lower is better)
+- **Throughput** in syndromes/sec (informational in current MVP)
 
-Typical split policy:
+Current MVP uses a single fixed point for simplicity and comparability.
 
-- `train`: 80%
-- `public-test`: 10%
-- `private-test`: 10%
-
-Primary metric is logical failure rate (lower is better), with throughput tracked in syndromes/sec.
-
-### Composite score (long-term design)
-
-$$
-S = 0.7\,(\text{improvement over MWPM}) + 0.3\,\min\!\left(1, \frac{\tau}{10^6}\right)
-$$
-
-with
-
-$$
-\text{improvement} = \frac{p_{\mathrm{MWPM}} - p_{\mathrm{yours}}}{p_{\mathrm{MWPM}}}
-$$
-
-where $\tau$ is throughput.
-
-## 8. Getting Started
+# 8. Getting Started
 
 Install:
 
@@ -188,58 +143,24 @@ Install:
 pip install qec_benchmark
 ```
 
-Load data and evaluate:
+Load/evaluate from the package tooling, then submit through the web/API flow.
 
-```python
-from qec_benchmark import load_dataset, evaluate
+# 9. Scoring
 
-train_syndromes, train_labels = load_dataset(L=5, p=0.01, xi=5, split="train")
-```
+Leaderboard ordering is based on logical failure rate.
 
-Implement decoder:
+General composite form (longer-term design):
 
-```python
-from qec_benchmark import BaseDecoder
+$$
+S = 0.7\,(\text{improvement over MWPM}) + 0.3\,\min\!\left(1, \frac{\tau}{10^6}\right)
+$$
 
-class MyDecoder(BaseDecoder):
-    def __init__(self, L, p, xi):
-        super().__init__(L, p, xi)
+where $\tau$ is throughput (syndromes/sec).
 
-    def train(self, syndromes, labels):
-        pass
+# Glossary
 
-    def decode(self, syndrome):
-        return 0
-```
-
-Evaluate:
-
-```python
-results = evaluate(MyDecoder, L=5, p=0.01, xi=5)
-print(results["logical_failure_rate"])
-```
-
-### Practical approaches to try
-
-- Reweighted MWPM using correlation-aware edge costs.
-- Belief-propagation or BP+MWPM hybrids.
-- Neural decoders over syndrome tensors.
-- Renormalization/grouping heuristics.
-- Hybrid learned-likelihood + combinatorial decode pipelines.
-
-### Engineering tips
-
-- Use known $(p,\xi)$ at decode time.
-- Start with small $L$ for fast iteration.
-- Profile inference speed early.
-- Spend most effort near threshold-like regimes where MWPM fails hardest.
-
-## 9. Glossary
-
-- **Syndrome**: stabilizer outcome pattern provided to decoder.
-- **Defect / anyon**: violated stabilizer indicator.
-- **Code distance**: minimum undetectable logical-failure weight.
-- **MWPM**: minimum-weight perfect matching decoder baseline.
-- **$\xi$**: correlation length controlling spatial error coupling.
-- **Logical failure rate**: fraction of instances with incorrect logical correction.
-- **Threshold $p_{\mathrm{th}}$**: critical physical error rate for scalable suppression.
+- **Syndrome**: stabilizer measurement outcomes used by decoder
+- **Defect / anyon**: violated stabilizer indicator
+- **Code distance**: minimum fault weight causing logical failure
+- **MWPM**: minimum-weight perfect matching baseline
+- **$\xi$ (xi)**: correlation length in the noise model
