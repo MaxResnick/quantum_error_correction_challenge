@@ -3,7 +3,8 @@
 import argparse
 import time
 
-from qec_benchmark.config import challenge_grid, tiny_grid, DEFAULT_SHOTS, DEFAULT_SEED
+from qec_benchmark import challenge_grid, tiny_grid
+from qec_benchmark.config import DEFAULT_SHOTS, DEFAULT_SEED
 from qec_benchmark.evaluation import run_benchmark
 
 
@@ -43,7 +44,6 @@ def main() -> None:
     elapsed = time.time() - start
 
     result.print_report(
-        grid_name=args.grid,
         shots_per_point=args.shots,
         seed=args.seed,
         elapsed=elapsed,

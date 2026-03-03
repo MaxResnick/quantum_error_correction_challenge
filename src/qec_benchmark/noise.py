@@ -1,22 +1,25 @@
 from __future__ import annotations
 
+from functools import lru_cache
+
 import numpy as np
 from scipy.special import ndtri
 
 
-def _exp_correlation_matrix(positions: np.ndarray, xi: float) -> np.ndarray:
-    """Build correlation matrix from pairwise Euclidean distances.
-
-    Args:
-        positions: shape (num_qubits, ndim) -- physical coordinates.
-        xi: correlation length. If xi <= 0, returns identity.
-    """
+def _cholesky_factor(positions_key: tuple[tuple[float, ...], ...], xi: float) -> np.ndarray:
+    """Compute and cache Cholesky factor for a given geometry and xi."""
+    positions = np.array(positions_key, dtype=np.float64)
     n = positions.shape[0]
-    if xi <= 0:
-        return np.eye(n, dtype=np.float64)
     diff = positions[:, None, :] - positions[None, :, :]
     dist = np.sqrt(np.sum(diff**2, axis=-1))
-    return np.exp(-dist / xi)
+    corr = np.exp(-dist / xi)
+    return np.linalg.cholesky(corr + 1e-12 * np.eye(n))
+
+
+# Cache by (positions_as_tuple, xi). Maxsize 32 covers any reasonable grid.
+@lru_cache(maxsize=32)
+def _cached_cholesky(positions_key: tuple[tuple[float, ...], ...], xi: float) -> np.ndarray:
+    return _cholesky_factor(positions_key, xi)
 
 
 def sample_correlated_bernoulli(
@@ -58,9 +61,9 @@ def sample_correlated_bernoulli(
     if xi <= 0:
         return rng.random((shots, num_qubits)) < p
 
-    corr = _exp_correlation_matrix(positions, xi)
-    # Add a tiny jitter to stabilize Cholesky for large xi.
-    chol = np.linalg.cholesky(corr + 1e-12 * np.eye(num_qubits))
+    # Convert positions to hashable key for caching.
+    positions_key = tuple(tuple(row) for row in positions)
+    chol = _cached_cholesky(positions_key, xi)
     z = rng.normal(size=(shots, num_qubits)) @ chol.T
     threshold = ndtri(1.0 - p)
     return z > threshold

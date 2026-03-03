@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import Callable
 
@@ -18,24 +17,41 @@ class PointResult:
     xi: float
     shots: int
     errors: int
-    error_rate: float
+
+    @property
+    def error_rate(self) -> float:
+        return self.errors / self.shots if self.shots > 0 else 0.0
 
 
 @dataclass(frozen=True, slots=True)
 class BenchmarkResult:
     point_results: list[PointResult]
-    total_errors: int
-    total_shots: int
-    score: int  # errors per million simulations
+
+    @property
+    def total_errors(self) -> int:
+        return sum(r.errors for r in self.point_results)
+
+    @property
+    def total_shots(self) -> int:
+        return sum(r.shots for r in self.point_results)
+
+    @property
+    def score(self) -> int:
+        """Errors per million simulations."""
+        ts = self.total_shots
+        return round(self.total_errors * 1_000_000 / ts) if ts > 0 else 0
+
+    def _grid_axes(self) -> tuple[list[int], list[float], list[float]]:
+        Ls = sorted(set(r.L for r in self.point_results))
+        ps = sorted(set(r.p for r in self.point_results))
+        xis = sorted(set(r.xi for r in self.point_results))
+        return Ls, ps, xis
 
     def _is_full_grid(self) -> bool:
-        """Check if results form a complete L x p x xi grid (no gaps)."""
-        Ls = set(r.L for r in self.point_results)
-        ps = set(r.p for r in self.point_results)
-        xis = set(r.xi for r in self.point_results)
+        Ls, ps, xis = self._grid_axes()
         return len(self.point_results) == len(Ls) * len(ps) * len(xis)
 
-    def print_report(self, grid_name: str, shots_per_point: int, seed: int, elapsed: float) -> None:
+    def print_report(self, shots_per_point: int, seed: int, elapsed: float) -> None:
         n = len(self.point_results)
 
         print()
@@ -56,7 +72,7 @@ class BenchmarkResult:
 
     def _print_grid_table(self) -> None:
         """Print as grouped L tables with xi columns -- for full grids."""
-        xis = sorted(set(r.xi for r in self.point_results))
+        Ls, ps, xis = self._grid_axes()
         xi_labels = [f"xi={xi:g}" for xi in xis]
         col_w = max(10, *(len(l) + 2 for l in xi_labels))
 
@@ -64,8 +80,6 @@ class BenchmarkResult:
         sep = "  " + "─" * len(header)
 
         lookup = {(r.L, r.p, r.xi): r for r in self.point_results}
-        Ls = sorted(set(r.L for r in self.point_results))
-        ps = sorted(set(r.p for r in self.point_results))
 
         print(f"  Errors per point:")
         for L in Ls:
@@ -74,10 +88,7 @@ class BenchmarkResult:
             print(header)
             print(sep)
             for p in ps:
-                cells = []
-                for xi in xis:
-                    r = lookup[(L, p, xi)]
-                    cells.append(f"{r.errors:>{col_w},}")
+                cells = [f"{lookup[(L, p, xi)].errors:>{col_w},}" for xi in xis]
                 print(f"  {p:>7.3f}" + "".join(cells))
 
     def _print_flat_table(self) -> None:
@@ -97,11 +108,15 @@ def run_benchmark(
     """Generate syndromes on-the-fly, decode, and score."""
     rng = np.random.default_rng(seed)
     point_results: list[PointResult] = []
-    total_errors = 0
-    total_shots = 0
+
+    # Cache experiments by distance (L) since they don't depend on p or xi.
+    experiments: dict[int, SurfaceCodeExperiment] = {}
 
     for point in grid:
-        experiment = SurfaceCodeExperiment(distance=point.L)
+        if point.L not in experiments:
+            experiments[point.L] = SurfaceCodeExperiment(distance=point.L)
+        experiment = experiments[point.L]
+
         syndromes, logical_truth = experiment.sample_correlated(
             shots=shots_per_point,
             p=point.p,
@@ -110,31 +125,15 @@ def run_benchmark(
         )
 
         decoder = build_decoder_fn(point)
-        predictions = decoder.decode(syndromes.astype(np.uint8))
-        predictions = predictions.astype(np.uint8).reshape(-1)
-        logical_truth = logical_truth.astype(np.uint8).reshape(-1)
+        predictions = decoder.decode(syndromes)
 
-        errors = int(np.sum(predictions != logical_truth))
-        error_rate = errors / shots_per_point
+        errors = int(np.sum(predictions.reshape(-1) != logical_truth))
 
         point_results.append(
             PointResult(
-                L=point.L,
-                p=point.p,
-                xi=point.xi,
-                shots=shots_per_point,
-                errors=errors,
-                error_rate=error_rate,
+                L=point.L, p=point.p, xi=point.xi,
+                shots=shots_per_point, errors=errors,
             )
         )
-        total_errors += errors
-        total_shots += shots_per_point
 
-    score = round(total_errors * 1_000_000 / total_shots) if total_shots > 0 else 0
-
-    return BenchmarkResult(
-        point_results=point_results,
-        total_errors=total_errors,
-        total_shots=total_shots,
-        score=score,
-    )
+    return BenchmarkResult(point_results=point_results)
