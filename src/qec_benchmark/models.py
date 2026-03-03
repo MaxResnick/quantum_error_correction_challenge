@@ -27,15 +27,3 @@ class ParameterPoint:
             p=float(parts[1][1:]),
             xi=float(parts[2][2:]),
         )
-
-
-@dataclass(frozen=True, slots=True)
-class DatasetSplitFractions:
-    train: float = 0.8
-    public_test: float = 0.1
-    private_test: float = 0.1
-
-    def validate(self) -> None:
-        total = self.train + self.public_test + self.private_test
-        if abs(total - 1.0) > 1e-9:
-            raise ValueError(f"split fractions must sum to 1.0, got {total}")

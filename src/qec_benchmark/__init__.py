@@ -1,13 +1,13 @@
 """qec_benchmark package."""
 
-from .config import default_grid, tiny_grid
-from .dataset import generate_dataset, load_split
-from .evaluation import evaluate_decoder
+from .models import ParameterPoint
+from .baselines import Decoder, MWPMDecoder
+from .config import challenge_grid, tiny_grid
 
 __all__ = [
-    "default_grid",
+    "ParameterPoint",
+    "Decoder",
+    "MWPMDecoder",
+    "challenge_grid",
     "tiny_grid",
-    "generate_dataset",
-    "load_split",
-    "evaluate_decoder",
 ]

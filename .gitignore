@@ -6,6 +6,3 @@ __pycache__/
 build/
 dist/
 *.db
-data/
-.mvp/
-.qec_submissions/

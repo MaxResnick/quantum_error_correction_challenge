@@ -28,6 +28,8 @@ class SurfaceCodeExperiment:
     _suffix: stim.Circuit = field(init=False, repr=False)
     _data_qubits: np.ndarray = field(init=False, repr=False)
 
+    _data_positions: np.ndarray = field(init=False, repr=False)
+
     def __post_init__(self) -> None:
         if self.distance < 3:
             raise ValueError("distance must be >=3")
@@ -38,6 +40,7 @@ class SurfaceCodeExperiment:
         self._circuit = self._build_noiseless_circuit()
         self._prefix, self._suffix = self._split_for_injection(self._circuit)
         self._data_qubits = self._find_data_qubits(self._circuit)
+        self._data_positions = self._extract_positions(self._circuit, self._data_qubits)
 
     def _circuit_name(self) -> str:
         # Use memory_z for X/Y flips, and memory_x for Z flips.
@@ -88,6 +91,20 @@ class SurfaceCodeExperiment:
         # Final data readout is typically the largest measurement block.
         data = max(candidates, key=len)
         return np.asarray(sorted(set(data)), dtype=np.int32)
+
+    @staticmethod
+    def _extract_positions(circuit: stim.Circuit, data_qubits: np.ndarray) -> np.ndarray:
+        coords = circuit.get_final_qubit_coordinates()
+        positions = []
+        for q in data_qubits:
+            c = coords[int(q)]
+            positions.append(c[:2])  # take x, y
+        return np.array(positions, dtype=np.float64)
+
+    @property
+    def data_positions(self) -> np.ndarray:
+        """2D coordinates of data qubits, shape (num_data_qubits, 2)."""
+        return self._data_positions
 
     @property
     def circuit(self) -> stim.Circuit:
@@ -146,7 +163,7 @@ class SurfaceCodeExperiment:
         rng: np.random.Generator,
     ) -> tuple[np.ndarray, np.ndarray]:
         mask = sample_correlated_bernoulli(
-            num_qubits=self.num_data_qubits,
+            positions=self._data_positions,
             shots=shots,
             p=p,
             xi=xi,
