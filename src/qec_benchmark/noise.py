@@ -4,19 +4,24 @@ import numpy as np
 from scipy.special import ndtri
 
 
-def _exp_correlation_matrix(num_qubits: int, xi: float) -> np.ndarray:
-    if num_qubits <= 0:
-        raise ValueError("num_qubits must be positive")
+def _exp_correlation_matrix(positions: np.ndarray, xi: float) -> np.ndarray:
+    """Build correlation matrix from pairwise Euclidean distances.
+
+    Args:
+        positions: shape (num_qubits, ndim) -- physical coordinates.
+        xi: correlation length. If xi <= 0, returns identity.
+    """
+    n = positions.shape[0]
     if xi <= 0:
-        return np.eye(num_qubits, dtype=np.float64)
-    idx = np.arange(num_qubits, dtype=np.float64)
-    d = np.abs(idx[:, None] - idx[None, :])
-    return np.exp(-d / xi)
+        return np.eye(n, dtype=np.float64)
+    diff = positions[:, None, :] - positions[None, :, :]
+    dist = np.sqrt(np.sum(diff**2, axis=-1))
+    return np.exp(-dist / xi)
 
 
 def sample_correlated_bernoulli(
     *,
-    num_qubits: int,
+    positions: np.ndarray,
     shots: int,
     p: float,
     xi: float,
@@ -24,9 +29,21 @@ def sample_correlated_bernoulli(
 ) -> np.ndarray:
     """Sample a correlated Bernoulli field using a Gaussian copula.
 
-    The latent correlation decays exponentially with distance scale `xi`. For
-    `xi=0`, this reduces to independent Bernoulli noise.
+    The latent correlation decays exponentially with Euclidean distance
+    between qubit positions, with length scale `xi`. For `xi=0`, this
+    reduces to independent Bernoulli noise.
+
+    Args:
+        positions: shape (num_qubits, ndim) -- physical qubit coordinates.
+        shots: number of samples.
+        p: marginal error probability per qubit.
+        xi: correlation length in the same units as positions.
+        rng: numpy random generator.
+
+    Returns:
+        Boolean array of shape (shots, num_qubits).
     """
+    num_qubits = positions.shape[0]
     if not (0.0 <= p <= 1.0):
         raise ValueError(f"p must be in [0, 1], got {p}")
     if shots < 0:
@@ -41,7 +58,7 @@ def sample_correlated_bernoulli(
     if xi <= 0:
         return rng.random((shots, num_qubits)) < p
 
-    corr = _exp_correlation_matrix(num_qubits, xi)
+    corr = _exp_correlation_matrix(positions, xi)
     # Add a tiny jitter to stabilize Cholesky for large xi.
     chol = np.linalg.cholesky(corr + 1e-12 * np.eye(num_qubits))
     z = rng.normal(size=(shots, num_qubits)) @ chol.T
