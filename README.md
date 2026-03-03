@@ -15,14 +15,13 @@ Your job: build a decoder that handles correlated noise better than MWPM.
 ```bash
 git clone https://github.com/benedictbrady/quantum-error-correction-challenge.git
 cd quantum-error-correction-challenge
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
+uv sync
 
 # Quick test (~5s)
-python run.py --grid tiny --shots 1000
+uv run python run.py --grid tiny --shots 1000
 
 # Full benchmark (~60s)
-python run.py
+uv run python run.py
 ```
 
 ## How it works
@@ -66,10 +65,10 @@ Your decoder is evaluated across a grid of 6 parameter points:
 Total errors across all points, divided by total simulations, scaled to per-million. Default: 1M shots per point, seed 42.
 
 ```
-python run.py                    # full benchmark
-python run.py --shots 100000     # quick test
-python run.py --seed 99          # different seed
-python run.py --grid tiny        # 3-point quick grid
+uv run python run.py                    # full benchmark
+uv run python run.py --shots 100000     # quick test
+uv run python run.py --seed 99          # different seed
+uv run python run.py --grid tiny        # 3-point quick grid
 ```
 
 ## The Baseline
@@ -112,5 +111,5 @@ The copula maps correlated Gaussian samples through the marginal CDF to produce 
 ## Running Tests
 
 ```bash
-pytest
+uv run pytest
 ```
