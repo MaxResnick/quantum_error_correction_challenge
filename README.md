@@ -1,216 +1,116 @@
-# qec_benchmark
+# Quantum Error Correction Challenge
 
-Open benchmark tooling for decoding surface-code syndromes under spatially correlated noise.
+Build a decoder that beats minimum-weight perfect matching on correlated noise.
 
-This is a practical benchmark for classical engineers: your job is to build a decoder that beats MWPM when noise is correlated.
+## What is this?
 
-## What You Are Building
+Quantum computers use **surface codes** to protect logical qubits from physical errors. When an error occurs, stabilizer measurements produce a **syndrome** -- a pattern of flags indicating something went wrong. A **decoder** reads the syndrome and decides what correction to apply.
 
-A decoder that maps syndrome measurements to a logical correction decision.
+The standard decoder (MWPM) assumes errors are independent. Real hardware has **correlated noise** -- crosstalk, leakage, and burst errors that cluster together. Under correlation, MWPM's assumptions break down and its accuracy degrades.
 
-In this repo, decoders operate on batches:
+Your job: build a decoder that handles correlated noise better than MWPM.
 
-- Input: `syndrome_array` with shape `(shots, num_detectors)` and binary values
-- Output: `np.ndarray` with shape `(shots,)` and binary predictions
-
-The benchmark evaluates logical failure rate and throughput over a grid of parameter points `(L, p, xi)`.
-
-## Why This Benchmark Exists
-
-Under independent noise (`xi = 0`), MWPM performs well.  
-Real hardware has correlated noise (crosstalk, bursts, leakage), and MWPM’s iid graph assumptions become wrong.
-
-This benchmark standardizes:
-
-- noise model and parameter grid
-- dataset format and splits
-- evaluation metrics
-- submission API and leaderboard
-
-so results are comparable across decoder approaches.
-
-## Core Concepts (Quick Background)
-
-- **Physical vs logical qubits:** many noisy physical qubits protect one logical qubit.
-- **Surface code distance:** for an `L x L` code, distance `d = L`.
-- **Syndrome:** stabilizer measurement outcomes indicating local defects.
-- **Decoder objective:** infer correction from syndrome while minimizing logical failure.
-
-Correlated noise is parameterized by correlation length `xi`, with covariance:
-
-`C_ij = p * exp(-|i-j| / xi)`
-
-As `xi` increases, clustered errors become more common and iid assumptions degrade.
-
-## Repository Status
-
-Implemented today:
-
-- Phase 1 core: deterministic correlated-noise dataset generation and split packaging
-- Phase 2 core: baseline decoders + evaluation harness
-- Phase 3 alpha: Docker-isolated submission evaluation + persistent leaderboard records + MVP web UI
-
-## Quickstart (MVP End-to-End)
-
-### 1. Setup
+## Quick Start
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e '.[server,dev]'
+git clone https://github.com/benedictbrady/quantum-error-correction-challenge.git
+cd quantum-error-correction-challenge
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+
+# Quick test (~5s)
+python run.py --grid tiny --shots 1000
+
+# Full benchmark (~60s)
+python run.py
 ```
 
-### 2. Generate a small local dataset
+## How it works
 
-```bash
-qec-benchmark-generate --output data/mvp10_hard --shots 200000 --grid mvp10 --seed 7 --overwrite
-```
-
-### 3. Start the local MVP stack
-
-```bash
-./scripts/mvp_start.sh
-```
-
-Open:
-
-- `http://127.0.0.1:8000/`
-- `http://127.0.0.1:8000/health`
-- `http://127.0.0.1:8000/leaderboard`
-- `http://127.0.0.1:8000/submissions`
-
-### 4. Submit a decoder
-
-```bash
-curl -X POST "http://127.0.0.1:8000/submissions/python?name=my_decoder" \
-  -F file=@examples/submission_template.py
-```
-
-Poll status:
-
-```bash
-curl "http://127.0.0.1:8000/submissions/1"
-```
-
-### 5. Stop
-
-```bash
-./scripts/mvp_stop.sh
-```
-
-Run full smoke test:
-
-```bash
-./scripts/mvp_smoke_test.sh
-```
-
-## CLI Reference
-
-Generate dataset:
-
-```bash
-qec-benchmark-generate --output data/mvp10_hard --shots 200000 --grid mvp10 --seed 7
-```
-
-Evaluate bundled baselines:
-
-```bash
-qec-benchmark-eval --dataset data/mvp10_hard --split public_test --train-split train
-```
-
-Run API:
-
-```bash
-export QEC_DATASET_DIR=data/mvp10_hard
-qec-benchmark-server
-```
-
-Run worker:
-
-```bash
-export QEC_DATASET_DIR=data/mvp10_hard
-qec-benchmark-worker
-```
-
-## Decoder Submission Contract
-
-A submission module must define one of:
-
-- `build_decoder(point) -> decoder`
-- `build_decoder_family(points) -> dict[ParameterPoint, decoder]`
-
-Each decoder must implement:
-
-- `decode(syndrome_array: np.ndarray) -> np.ndarray`
-
-Minimal template:
+Edit **`solve.py`**. That's the only file you need to change.
 
 ```python
-from qec_benchmark.baselines import MWPMDecoder
-
-def build_decoder(point):
-    return MWPMDecoder(point=point, weighted=True)
+def build_decoder(point: ParameterPoint):
+    """Return a decoder for the given parameter point."""
+    return MWPMDecoder(point=point, weighted=True)  # <- replace this
 ```
 
-See [`examples/submission_template.py`](examples/submission_template.py).
+Your decoder receives a batch of syndromes and returns predictions:
 
-## Dataset Format
+- **Input**: `syndrome_array` -- shape `(shots, num_detectors)`, dtype `uint8`, binary values
+- **Output**: `np.ndarray` -- shape `(shots,)`, dtype `uint8`, binary predictions (0 or 1)
 
-Generated layout:
+Each prediction is whether a logical flip occurred. The benchmark generates fresh data from a seed on every run -- no pre-generated datasets, no data files.
 
-```text
-<dataset_dir>/
-  metadata.json
-  train/*.npz
-  public_test/*.npz
-  private_test/*.npz
+The `point` parameter tells you the current configuration:
+
+- `point.L` -- lattice size (code distance)
+- `point.p` -- physical error rate
+- `point.xi` -- correlation length (0 = independent noise)
+
+## Scoring
+
+**Errors per million simulations** (integer, lower is better).
+
+Your decoder is evaluated across a grid of 6 parameter points:
+
+| L | p    | xi   |
+|---|------|------|
+| 5 | 0.01 | 0.0  |
+| 5 | 0.01 | 5.0  |
+| 5 | 0.01 | 10.0 |
+| 7 | 0.01 | 0.0  |
+| 7 | 0.01 | 5.0  |
+| 7 | 0.01 | 10.0 |
+
+Total errors across all points, divided by total simulations, scaled to per-million. Default: 1M shots per point, seed 42.
+
+```
+python run.py                    # full benchmark
+python run.py --shots 100000     # quick test
+python run.py --seed 99          # different seed
+python run.py --grid tiny        # 3-point quick grid
 ```
 
-Each `.npz` contains:
+## The Baseline
 
-- `syndrome`: `uint8`, shape `(shots, num_detectors)`
-- `logical`: `uint8`, shape `(shots,)`
+The default decoder is **Minimum-Weight Perfect Matching (MWPM)**. It builds a graph from the detector error model assuming independent noise, then finds the minimum-weight matching to determine corrections.
 
-Default benchmark grid:
+MWPM is near-optimal for independent noise (`xi = 0`). But as correlation length `xi` increases, errors cluster together. MWPM doesn't know about this clustering -- it still assumes every error is independent -- so it makes worse decisions. The gap between MWPM and an ideal correlated-noise decoder grows with `xi`.
 
-- `L in {3, 5, 7, 11}`
-- `p in {0.001, 0.005, 0.01, 0.02, 0.05}`
-- `xi in {0, 1, 2, 5, 10, 20}`
+## The Noise Model
 
-MVP external-testing grid:
+Errors are generated via a **Gaussian copula** with exponentially decaying correlation:
 
-- `L = 10`, `p = 0.03`, `xi = 10.0`
-- leaderboard rank is based on logical failure rate at this single point
+```
+C_ij = exp(-|i - j| / xi)
+```
 
-## Built-in Baselines
+- `xi = 0`: independent Bernoulli noise (MWPM is strong here)
+- `xi = 5`: moderate correlation (errors tend to cluster)
+- `xi = 10`: strong correlation (large error bursts, MWPM struggles)
 
-- `mwpm_uniform`: MWPM graph with uniform edge weights
-- `mwpm_iid`: MWPM graph weighted under iid assumption (`p`, ignores `xi`)
-- `mlp`: two-layer MLP on syndrome vectors
+The copula maps correlated Gaussian samples through the marginal CDF to produce correlated binary errors with the specified marginal rate `p`.
 
-## Scoring Metrics
+## Hints
 
-Primary metrics tracked in this codebase:
+- Look at how MWPM fails: at high `xi`, correlated error bursts fool the independent-noise graph weights
+- The syndrome itself contains spatial structure that reveals correlation patterns
+- You can build different decoders for different parameter points
+- Consider combining MWPM with a learned correction layer
+- Neural decoders, belief propagation, or hybrid approaches could all work
+- You have access to unlimited training data via `SurfaceCodeExperiment.sample_correlated()`
 
-- mean logical failure rate (lower is better)
-- mean throughput in syndromes/second (higher is better)
+## Rules
 
-These are reported per submission and per parameter point.
+- Modify only `solve.py`
+- Your decoder must implement `decode(syndrome_array) -> predictions`
+- No filesystem access, no network calls during decoding
+- Scoring uses seed 42 -- don't overfit to a specific seed
+- Your decoder is called once per parameter point with all shots in one batch
 
-## Runtime and Security Notes
+## Running Tests
 
-Submission evaluation runs in Docker with:
-
-- network disabled
-- read-only root filesystem
-- hard timeout
-- non-root user
-- dropped Linux capabilities + `no-new-privileges`
-
-Useful environment variables:
-
-- `QEC_DOCKER_IMAGE`
-- `QEC_DATASET_DIR`
-- `QEC_DB_URL`
-- `QEC_SUBMISSIONS_DIR`
-- `QEC_MAX_SUBMISSION_BYTES`
+```bash
+pytest
+```

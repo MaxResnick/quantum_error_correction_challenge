@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import time
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
+from typing import Callable
 
 import numpy as np
 
 from .baselines import Decoder
 from .models import ParameterPoint
+from .stim_surface_code import SurfaceCodeExperiment
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,67 +16,82 @@ class PointResult:
     p: float
     xi: float
     shots: int
-    logical_failure_rate: float
-    throughput_sps: float
+    errors: int
+    error_rate: float
 
 
 @dataclass(frozen=True, slots=True)
-class EvaluationResult:
-    by_point: dict[str, PointResult]
-    mean_failure_rate: float
-    mean_throughput_sps: float
+class BenchmarkResult:
+    point_results: list[PointResult]
+    total_errors: int
+    total_shots: int
+    score: int  # errors per million simulations
 
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "by_point": {k: asdict(v) for k, v in self.by_point.items()},
-            "mean_failure_rate": self.mean_failure_rate,
-            "mean_throughput_sps": self.mean_throughput_sps,
-        }
-
-
-def evaluate_decoder(
-    *,
-    decoder_family: dict[ParameterPoint, Decoder],
-    split_data: dict[ParameterPoint, tuple[np.ndarray, np.ndarray]],
-) -> EvaluationResult:
-    """Evaluate a point-specific decoder family over one benchmark split."""
-    point_results: dict[str, PointResult] = {}
-    all_failures: list[float] = []
-    all_throughputs: list[float] = []
-
-    for point, (syndrome, logical_truth) in split_data.items():
-        if point not in decoder_family:
-            raise KeyError(f"missing decoder for point {point}")
-        decoder = decoder_family[point]
-
-        start = time.perf_counter()
-        logical_pred = decoder.decode(syndrome)
-        elapsed = max(1e-12, time.perf_counter() - start)
-
-        logical_pred = logical_pred.astype(np.uint8, copy=False).reshape(-1)
-        logical_truth = logical_truth.astype(np.uint8, copy=False).reshape(-1)
-        if logical_pred.shape != logical_truth.shape:
-            raise ValueError(
-                f"prediction shape {logical_pred.shape} != truth {logical_truth.shape}"
+    def print_table(self, grid_name: str, shots_per_point: int, seed: int) -> None:
+        num_points = len(self.point_results)
+        print(f"QEC Decoder Benchmark")
+        print(
+            f"Grid: {grid_name} ({num_points} points) | "
+            f"Shots: {shots_per_point:,} | Seed: {seed}"
+        )
+        print()
+        print(f"  {'L':>3}   {'p':<6}   {'xi':<6}   {'Errors':>8}   {'Rate':<10}")
+        for r in self.point_results:
+            print(
+                f"  {r.L:>3}   {r.p:<6.4f}   {r.xi:<6.1f}   {r.errors:>8,}   {r.error_rate:<.6f}"
             )
+        print()
+        print(f"Total: {self.total_errors:,} errors in {self.total_shots:,} sims")
+        print(f"Score: {self.score} errors per million")
 
-        failures = float(np.mean(logical_pred != logical_truth))
-        throughput = float(syndrome.shape[0] / elapsed)
 
-        result = PointResult(
-            L=point.L,
+def run_benchmark(
+    build_decoder_fn: Callable[[ParameterPoint], Decoder],
+    grid: list[ParameterPoint],
+    shots_per_point: int,
+    seed: int,
+) -> BenchmarkResult:
+    """Generate syndromes on-the-fly, decode, and score."""
+    rng = np.random.default_rng(seed)
+    point_results: list[PointResult] = []
+    total_errors = 0
+    total_shots = 0
+
+    for point in grid:
+        experiment = SurfaceCodeExperiment(distance=point.L)
+        syndromes, logical_truth = experiment.sample_correlated(
+            shots=shots_per_point,
             p=point.p,
             xi=point.xi,
-            shots=int(syndrome.shape[0]),
-            logical_failure_rate=failures,
-            throughput_sps=throughput,
+            rng=rng,
         )
-        point_results[point.key()] = result
-        all_failures.append(failures)
-        all_throughputs.append(throughput)
 
-    return EvaluationResult(
-        by_point=point_results,
-        mean_failure_rate=float(np.mean(all_failures)) if all_failures else float("nan"),
-        mean_throughput_sps=float(np.mean(all_throughputs)) if all_throughputs else float("nan"),
+        decoder = build_decoder_fn(point)
+        predictions = decoder.decode(syndromes.astype(np.uint8))
+        predictions = predictions.astype(np.uint8).reshape(-1)
+        logical_truth = logical_truth.astype(np.uint8).reshape(-1)
+
+        errors = int(np.sum(predictions != logical_truth))
+        error_rate = errors / shots_per_point
+
+        point_results.append(
+            PointResult(
+                L=point.L,
+                p=point.p,
+                xi=point.xi,
+                shots=shots_per_point,
+                errors=errors,
+                error_rate=error_rate,
+            )
+        )
+        total_errors += errors
+        total_shots += shots_per_point
+
+    score = round(total_errors * 1_000_000 / total_shots) if total_shots > 0 else 0
+
+    return BenchmarkResult(
+        point_results=point_results,
+        total_errors=total_errors,
+        total_shots=total_shots,
+        score=score,
     )
