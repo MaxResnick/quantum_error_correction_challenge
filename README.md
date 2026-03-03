@@ -60,7 +60,7 @@ Your decoder is evaluated across a grid of 24 parameter points:
 Total errors across all points, divided by total simulations, scaled to per-million. Default: 1M shots per point, seed 42.
 
 ```
-uv run python run.py                    # full benchmark (10s/point limit)
+uv run python run.py                    # full benchmark (2.5s/point limit)
 uv run python run.py --validate         # multi-seed evaluation (5 seeds)
 uv run python run.py --shots 100000     # quick test
 uv run python run.py --seed 99          # different seed
@@ -94,7 +94,7 @@ The copula maps correlated Gaussian samples through the marginal CDF to produce 
 - Modify only `solve.py` (200KB max file size, enforced by the arena)
 - Your decoder must implement `decode(syndrome_array) -> predictions`
 - No filesystem access, no network calls during decoding
-- **10-second time limit** per parameter point (covers `build_decoder` + `decode` combined). Exceeding the limit or crashing scores that point as all-wrong
+- **2.5-second time limit** per parameter point (covers `build_decoder` + `decode` combined). Exceeding the limit or crashing scores that point as all-wrong
 - The arena uses **hidden seeds** -- don't overfit to a specific seed. Use `--validate` to test across multiple seeds
 - Your decoder is called once per parameter point with all shots in one batch
 
