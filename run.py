@@ -27,10 +27,6 @@ def main() -> None:
         "--grid", choices=list(GRIDS.keys()), default="challenge",
         help="parameter grid to use (default: challenge)",
     )
-    parser.add_argument(
-        "--time-limit", type=float, default=None,
-        help="cap total runtime in seconds (informational warning only)",
-    )
     args = parser.parse_args()
 
     from solve import build_decoder
@@ -46,12 +42,12 @@ def main() -> None:
     )
     elapsed = time.time() - start
 
-    result.print_table(grid_name=args.grid, shots_per_point=args.shots, seed=args.seed)
-
-    if args.time_limit and elapsed > args.time_limit:
-        print(f"\nWarning: took {elapsed:.1f}s (limit: {args.time_limit:.1f}s)")
-
-    print(f"\nCompleted in {elapsed:.1f}s")
+    result.print_report(
+        grid_name=args.grid,
+        shots_per_point=args.shots,
+        seed=args.seed,
+        elapsed=elapsed,
+    )
 
 
 if __name__ == "__main__":

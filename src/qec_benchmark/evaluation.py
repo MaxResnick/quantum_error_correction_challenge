@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Callable
 
@@ -27,22 +28,64 @@ class BenchmarkResult:
     total_shots: int
     score: int  # errors per million simulations
 
-    def print_table(self, grid_name: str, shots_per_point: int, seed: int) -> None:
-        num_points = len(self.point_results)
-        print(f"QEC Decoder Benchmark")
-        print(
-            f"Grid: {grid_name} ({num_points} points) | "
-            f"Shots: {shots_per_point:,} | Seed: {seed}"
-        )
+    def _is_full_grid(self) -> bool:
+        """Check if results form a complete L x p x xi grid (no gaps)."""
+        Ls = set(r.L for r in self.point_results)
+        ps = set(r.p for r in self.point_results)
+        xis = set(r.xi for r in self.point_results)
+        return len(self.point_results) == len(Ls) * len(ps) * len(xis)
+
+    def print_report(self, grid_name: str, shots_per_point: int, seed: int, elapsed: float) -> None:
+        n = len(self.point_results)
+
         print()
-        print(f"  {'L':>3}   {'p':<6}   {'xi':<6}   {'Errors':>8}   {'Rate':<10}")
+        print(f"  QEC Decoder Benchmark")
+        print(f"  {n} points | {shots_per_point:,} shots | seed {seed}")
+        print()
+
+        if self._is_full_grid() and n > 3:
+            self._print_grid_table()
+        else:
+            self._print_flat_table()
+
+        print()
+        print(f"  {'Total':>11}: {self.total_errors:>10,} errors in {self.total_shots:,} shots")
+        print(f"  {'Score':>11}: {self.score:>10,} errors per million")
+        print(f"  {'Time':>11}: {elapsed:>10.1f}s")
+        print()
+
+    def _print_grid_table(self) -> None:
+        """Print as grouped L tables with xi columns -- for full grids."""
+        xis = sorted(set(r.xi for r in self.point_results))
+        xi_labels = [f"xi={xi:g}" for xi in xis]
+        col_w = max(10, *(len(l) + 2 for l in xi_labels))
+
+        header = f"  {'p':>7}" + "".join(f"{l:>{col_w}}" for l in xi_labels)
+        sep = "  " + "─" * len(header)
+
+        lookup = {(r.L, r.p, r.xi): r for r in self.point_results}
+        Ls = sorted(set(r.L for r in self.point_results))
+        ps = sorted(set(r.p for r in self.point_results))
+
+        print(f"  Errors per point:")
+        for L in Ls:
+            print()
+            print(f"  L = {L}")
+            print(header)
+            print(sep)
+            for p in ps:
+                cells = []
+                for xi in xis:
+                    r = lookup[(L, p, xi)]
+                    cells.append(f"{r.errors:>{col_w},}")
+                print(f"  {p:>7.3f}" + "".join(cells))
+
+    def _print_flat_table(self) -> None:
+        """Print as a simple flat table -- for sparse/tiny grids."""
+        print(f"  {'L':>5} {'p':>7} {'xi':>6} {'Errors':>10}")
+        print(f"  {'─' * 32}")
         for r in self.point_results:
-            print(
-                f"  {r.L:>3}   {r.p:<6.4f}   {r.xi:<6.1f}   {r.errors:>8,}   {r.error_rate:<.6f}"
-            )
-        print()
-        print(f"Total: {self.total_errors:,} errors in {self.total_shots:,} sims")
-        print(f"Score: {self.score} errors per million")
+            print(f"  {r.L:>5} {r.p:>7.3f} {r.xi:>6.1f} {r.errors:>10,}")
 
 
 def run_benchmark(
