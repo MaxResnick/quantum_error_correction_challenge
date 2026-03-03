@@ -13,8 +13,8 @@ Your job: build a decoder that handles correlated noise better than MWPM.
 ## Quick Start
 
 ```bash
-git clone https://github.com/benedictbrady/quantum-error-correction-challenge.git
-cd quantum-error-correction-challenge
+git clone https://github.com/MaxResnick/quantum_error_correction_challenge.git
+cd quantum_error_correction_challenge
 uv sync
 
 # Quick test (~5s)
@@ -86,15 +86,6 @@ C_ij = exp(-|i - j| / xi)
 - `xi = 10`: strong correlation (large error bursts spanning much of the lattice)
 
 The copula maps correlated Gaussian samples through the marginal CDF to produce correlated binary errors with the specified marginal rate `p`.
-
-## Hints
-
-- Look at how MWPM fails: at high `xi`, correlated error bursts fool the independent-noise graph weights
-- The syndrome itself contains spatial structure that reveals correlation patterns
-- You can build different decoders for different parameter points
-- Consider combining MWPM with a learned correction layer
-- Neural decoders, belief propagation, or hybrid approaches could all work
-- You have access to unlimited training data via `SurfaceCodeExperiment.sample_correlated()`
 
 ## Rules
 
