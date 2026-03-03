@@ -4,10 +4,22 @@ from .models import ParameterPoint
 
 
 def challenge_grid() -> list[ParameterPoint]:
-    """The official scoring grid."""
-    Ls = [5, 7]
-    ps = [0.01]
-    xis = [0.0, 5.0, 10.0]
+    """The official scoring grid (24 points).
+
+    Sweeps three axes:
+      L  in {3, 5, 7}     -- code distance (small → experimental scale)
+      p  in {0.005, 0.01}  -- physical error rate (below threshold → near threshold)
+      xi in {0, 2, 5, 10}  -- correlation length in stim coord units
+                              (nearest-neighbor spacing = 2)
+
+    xi=0 is the independent-noise baseline where MWPM is strong.
+    xi=2 gives nearest-neighbor correlation ~0.37.
+    xi=5 gives moderate multi-qubit clustering.
+    xi=10 gives strong bursts that span much of the lattice.
+    """
+    Ls = [3, 5, 7]
+    ps = [0.005, 0.01]
+    xis = [0.0, 2.0, 5.0, 10.0]
     return [ParameterPoint(L=L, p=p, xi=xi) for L in Ls for p in ps for xi in xis]
 
 

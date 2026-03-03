@@ -51,16 +51,11 @@ The `point` parameter tells you the current configuration:
 
 **Errors per million simulations** (integer, lower is better).
 
-Your decoder is evaluated across a grid of 6 parameter points:
+Your decoder is evaluated across a grid of 24 parameter points:
 
-| L | p    | xi   |
-|---|------|------|
-| 5 | 0.01 | 0.0  |
-| 5 | 0.01 | 5.0  |
-| 5 | 0.01 | 10.0 |
-| 7 | 0.01 | 0.0  |
-| 7 | 0.01 | 5.0  |
-| 7 | 0.01 | 10.0 |
+- **L** in {3, 5, 7} -- code distance, from small to experimental scale
+- **p** in {0.005, 0.01} -- physical error rate, below to near threshold
+- **xi** in {0, 2, 5, 10} -- correlation length (nearest-neighbor spacing = 2 in stim coordinates)
 
 Total errors across all points, divided by total simulations, scaled to per-million. Default: 1M shots per point, seed 42.
 
@@ -86,8 +81,9 @@ C_ij = exp(-|i - j| / xi)
 ```
 
 - `xi = 0`: independent Bernoulli noise (MWPM is strong here)
-- `xi = 5`: moderate correlation (errors tend to cluster)
-- `xi = 10`: strong correlation (large error bursts, MWPM struggles)
+- `xi = 2`: mild nearest-neighbor correlation (correlation ~0.37 between adjacent qubits)
+- `xi = 5`: moderate multi-qubit clustering
+- `xi = 10`: strong correlation (large error bursts spanning much of the lattice)
 
 The copula maps correlated Gaussian samples through the marginal CDF to produce correlated binary errors with the specified marginal rate `p`.
 
