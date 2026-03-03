@@ -34,3 +34,5 @@ def tiny_grid() -> list[ParameterPoint]:
 
 DEFAULT_SHOTS = 1_000_000
 DEFAULT_SEED = 42
+DEFAULT_TIME_LIMIT = 10.0  # seconds per point
+VALIDATE_SEEDS = [42, 137, 256, 1729, 31415]
